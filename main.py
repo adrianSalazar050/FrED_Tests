@@ -22,13 +22,20 @@ from matplotlib.figure import Figure
 def encontrar_puerto_arduino():
     puertos = serial.tools.list_ports.comports()
     for p in puertos:
-        if "Arduino" in p.description or "ttyACM" in p.device or "ttyUSB" in p.device or "COM" in p.device:
-            return p.device
-    # fallback
+        desc = p.description.lower()
+        hwid = p.hwid.lower()
+        if ("arduino" in desc) or ("usb serial" in desc) or ("ch340" in desc) or ("1a86" in hwid) or ("2341" in hwid):
+            return p.device  # Found a likely Arduino port
+
+    # Fallbacks if not found
     if platform.system() == "Windows":
-        return "COM9"   # or whatever your default port is
-    else:
+        return "COM9"  # You can change this to your usual COM
+    elif platform.system() == "Linux":
         return "/dev/ttyACM0"
+    elif platform.system() == "Darwin":  # macOS
+        return "/dev/tty.usbmodem1101"
+    else:
+        return None
 
 try:
     puerto = encontrar_puerto_arduino() or "/dev/ttyACM0"
@@ -198,9 +205,12 @@ class ControlGUI(QWidget):
                 if line.startswith("Temp:"):
                     t = float(line.split(':')[1])
                     self.temp_data.append(t)
-                elif line.startswith("Motor Spool:"):
-                    v = 1 if "Encendido" in line else 0
-                    self.motor_data.append(v)
+                elif line.startswith("Motor DC RPM:"):
+                    try:
+                        rpm = float(line.split(":")[1])
+                        self.motor_data.append(rpm)
+                    except ValueError:
+                        pass
                 elif line.startswith("Fan:"):
                     v = 1 if "Encendido" in line else 0
                     self.fan_data.append(v)
@@ -220,7 +230,7 @@ class ControlGUI(QWidget):
 
         # Actualizar gráficas
         self.canvas_temp.plot(self.temp_data, ylabel="Temp (°C)")
-        self.canvas_motor.plot(self.motor_data, ylabel="Motor DC ON/OFF")
+        self.canvas_motor.plot(self.motor_data, ylabel="Motor DC (RPM)")
         self.canvas_fan.plot(self.fan_data, ylabel="Fan ON/OFF")
         self.canvas_extruder.plot(self.extruder_data, ylabel="Extrusor ON/OFF")
 
@@ -258,4 +268,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
